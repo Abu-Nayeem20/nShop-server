@@ -4,6 +4,9 @@ const { MongoClient } = require('mongodb');
 const ObjectId = require('mongodb').ObjectId;
 require('dotenv').config();
 
+const Stripe = require('stripe');
+const stripe = Stripe(`${process.env.STRIPE_SECRET}`);
+
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -21,6 +24,7 @@ async function run() {
         const database = client.db('nShopDB');
         const productsCollection = database.collection('products');
         const usersCollection = database.collection('users');
+        const ordersCollection = database.collection('orders');
 
         // GET PRODUCTS API 
         app.get('/products', async (req, res) => {
@@ -46,6 +50,62 @@ async function run() {
             const result = await usersCollection.updateOne(filter, updateDoc, options);
             res.json(result);
         });
+
+        // POST API FOR ORDERS
+        app.post('/orders', async (req, res) => {
+            const order = req.body;
+            const newOrder = {...order, status: "Pending"};
+            const result = await ordersCollection.insertOne(newOrder);
+            // console.log("new order added");
+            res.json(result);
+        });
+
+        // GET ORDERS API FOR SINGLE USER
+        app.get('/orders', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email };
+        
+            const cursor = ordersCollection.find(query);
+            const orders = await cursor.toArray();
+            res.json(orders);
+        });
+         // GET API FOR A SINGLE ORDER
+         app.get('/orders/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const order = await ordersCollection.findOne(query);
+            res.json(order);
+        });
+
+        // UPDATE API FOR CONFIRM PAYMENT
+        app.put('/orders/:id', async (req, res) => {
+            const id = req.params.id;
+            const payment = req.body;
+            const filter = { _id: ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    payment: payment
+                }
+            };
+            const result = await ordersCollection.updateOne(filter, updatedDoc);
+            res.json(result);
+        });
+
+        // STRIPE PAYMENT API
+        app.post('/create-payment-intent', async (req, res) => {
+            const paymentInfo = req.body;
+            const amount = paymentInfo.price * 100;
+          
+            const paymentIntent = await stripe.paymentIntents.create({
+              amount: amount,
+              currency: 'usd',
+              payment_method_types: ['card']
+            });
+            // console.log(paymentIntent.client_secret)
+            res.send({
+              clientSecret: paymentIntent.client_secret,
+            });
+          });
 
     }
     finally {
