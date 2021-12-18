@@ -34,6 +34,29 @@ async function run() {
             const products = await cursor.toArray();
             res.send(products);
         });
+
+        // GET USERS API 
+        app.get('/allUsers', async (req, res) => {
+            const cursor = usersCollection.find({});
+            const users = await cursor.toArray();
+            res.send(users);
+        });
+
+         // UPDATE API FOR ORDERS
+         app.put('/allUsers/:id', async (req, res) => {
+            const id = req.params.id;
+            const updatedUser = req.body;
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    role: updatedUser.role
+                }
+            };
+            const result = await usersCollection.updateOne(filter, updatedDoc, options);
+            res.json(result);
+        });
+
          // GET API FOR A SINGLE PRODUCT
          app.get('/products/:id', async (req, res) => {
             const id = req.params.id;
