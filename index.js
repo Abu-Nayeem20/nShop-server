@@ -3,6 +3,7 @@ const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const ObjectId = require('mongodb').ObjectId;
 require('dotenv').config();
+const fileUpload = require('express-fileupload');
 
 const Stripe = require('stripe');
 const stripe = Stripe(`${process.env.STRIPE_SECRET}`);
@@ -13,6 +14,7 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(cors());
 app.use(express.json());
+app.use(fileUpload());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.f1hps.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
 
@@ -60,6 +62,29 @@ async function run() {
             res.json(result);
         });
 
+        // POST API FOR PRODUCT
+        app.post('/products', async (req, res) => {
+            const name = req.body.name;
+            const price = req.body.price;
+            const category = req.body.category;
+            const stock = req.body.stock;
+            const desc = req.body.desc;
+            const img = req.files.img;
+            const imgData = img.data;
+            const encodedImg = imgData.toString('base64');
+            const imageBuffer = Buffer.from(encodedImg, 'base64');
+            const product = {
+                name,
+                price,
+                category,
+                stock,
+                desc,
+                img: imageBuffer
+            }
+            const result = await productsCollection.insertOne(product);
+            res.json(result);
+        });
+
         // GET ORDERS API FOR SINGLE USER
         app.get('/orders', async (req, res) => {
             const email = req.query.email;
@@ -69,12 +94,43 @@ async function run() {
             const orders = await cursor.toArray();
             res.json(orders);
         });
+
+         // GET ORDERS API FOR ADMIN
+         app.get('/allOrders', async (req, res) => {
+            const cursor = ordersCollection.find({});
+            const allOrders = await cursor.toArray();
+            res.send(allOrders);
+        });
+
+         // UPDATE API FOR ORDERS
+         app.put('/allOrders/:id', async (req, res) => {
+            const id = req.params.id;
+            const updatedOrder = req.body;
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    status: updatedOrder.status
+                }
+            };
+            const result = await ordersCollection.updateOne(filter, updatedDoc, options);
+            res.json(result);
+        });
+
          // GET API FOR A SINGLE ORDER
          app.get('/orders/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
             const order = await ordersCollection.findOne(query);
             res.json(order);
+        });
+
+        // DELETE API FOR PRODUCT
+        app.delete('/products/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const result = await productsCollection.deleteOne(query);
+            res.json(result);
         });
 
         // UPDATE API FOR CONFIRM PAYMENT
